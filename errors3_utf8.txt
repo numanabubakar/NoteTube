@@ -1,0 +1,6 @@
+﻿app/api/generate-notes/route.ts(26,7): error TS2322: Type 'LanguageModelV1' is not assignable to type 'LanguageModel'.
+  Type 'LanguageModelV1' is not assignable to type '(string & {}) | LanguageModelV3 | LanguageModelV2'.
+    Property 'supportedUrls' is missing in type 'LanguageModelV1' but required in type 'LanguageModelV2'.
+app/api/generate-quiz/route.ts(38,7): error TS2322: Type 'LanguageModelV1' is not assignable to type 'LanguageModel'.
+  Type 'LanguageModelV1' is not assignable to type '(string & {}) | LanguageModelV3 | LanguageModelV2'.
+    Property 'supportedUrls' is missing in type 'LanguageModelV1' but required in type 'LanguageModelV2'.

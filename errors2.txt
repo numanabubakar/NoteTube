@@ -1,0 +1,11 @@
+﻿app/api/generate-notes/route.ts(25,7): error TS2322: Type 'LanguageModelV1' is not assignable to type 'LanguageModel'.
+  Type 'LanguageModelV1' is not assignable to type '(string & {}) | LanguageModelV3 | LanguageModelV2'.
+    Property 'supportedUrls' is missing in type 'LanguageModelV1' but required in type 'LanguageModelV2'.
+app/api/generate-notes/route.ts(26,9): error TS2353: Object literal may only specify known properties, and 'apiKey' does not exist in type 'GoogleGenerativeAISettings'.
+app/api/generate-quiz/route.ts(37,7): error TS2322: Type 'LanguageModelV1' is not assignable to type 'LanguageModel'.
+  Type 'LanguageModelV1' is not assignable to type '(string & {}) | LanguageModelV3 | LanguageModelV2'.
+    Property 'supportedUrls' is missing in type 'LanguageModelV1' but required in type 'LanguageModelV2'.
+app/api/generate-quiz/route.ts(38,9): error TS2353: Object literal may only specify known properties, and 'apiKey' does not exist in type 'GoogleGenerativeAISettings'.
+app/api/learning-stats/route.ts(64,85): error TS18047: 'statsData' is possibly 'null'.
+app/auth/login/page.tsx(36,11): error TS2353: Object literal may only specify known properties, and 'emailRedirectTo' does not exist in type '{ captchaToken?: string | undefined; }'.
+components/notes-with-bookmarks.tsx(6,20): error TS2724: '"lucide-react"' has no exported member named 'BookmarkOff'. Did you mean 'Bookmark'?
