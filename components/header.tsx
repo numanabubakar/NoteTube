@@ -16,8 +16,24 @@ import { LogOut, Settings, User } from 'lucide-react';
 import Link from 'next/link';
 
 export function Header() {
-  const user = useAuthStore((state) => state.user);
-  const logout = useAuthStore((state) => state.logout);
+  const { user, isLoading, logout } = useAuthStore((state) => ({
+    user: state.user,
+    isLoading: state.isLoading,
+    logout: state.logout
+  }));
+
+  if (isLoading) {
+    return (
+      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur">
+        <div className="container flex h-16 max-w-screen-2xl items-center justify-between px-4">
+          <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            NoteTube
+          </div>
+          <div className="h-8 w-8 rounded-full bg-slate-200 animate-pulse" />
+        </div>
+      </header>
+    );
+  }
 
   return (
     <motion.header

@@ -46,8 +46,21 @@ const item = {
   show: { opacity: 1, y: 0 },
 };
 
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+
 export default function Home() {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const { isAuthenticated, isLoading } = useAuthStore((state) => ({
+    isAuthenticated: state.isAuthenticated,
+    isLoading: state.isLoading
+  }));
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.push('/dashboard');
+    }
+  }, [isAuthenticated, isLoading, router]);
 
   return (
     <div className="flex min-h-screen flex-col">
