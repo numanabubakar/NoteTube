@@ -1,22 +1,67 @@
-'use client';
-
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { DashboardLayout } from '@/components/dashboard-layout';
-import { useLearningStore } from '@/store/learning-store';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, BookOpen, PlayCircle } from 'lucide-react';
+import { CheckCircle2, BookOpen, PlayCircle, Loader2 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+
+interface SessionData {
+  id: string;
+  duration_minutes: number;
+  notes_count: number;
+  quiz_score: number | null;
+  created_at: string;
+  videos: {
+    title: string;
+    youtube_url: string;
+  };
+}
 
 export default function LearningHistoryPage() {
-  const sessions = useLearningStore((state) => state.sessions);
+  const [sessions, setSessions] = useState<SessionData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase
+          .from('learning_sessions')
+          .select(`
+            id,
+            duration_minutes,
+            notes_count,
+            quiz_score,
+            created_at,
+            videos (
+              title,
+              youtube_url
+            )
+          `)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setSessions(data || []);
+      } catch (err) {
+        console.error('Error fetching learning history:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchHistory();
+  }, []);
 
   const container = {
     hidden: { opacity: 0 },
     show: {
       opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-      },
+      transition: { staggerChildren: 0.1 },
     },
   };
 
@@ -24,6 +69,16 @@ export default function LearningHistoryPage() {
     hidden: { opacity: 0, y: 20 },
     show: { opacity: 1, y: 0 },
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -77,24 +132,23 @@ export default function LearningHistoryPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="font-semibold text-lg truncate">
-                            {session.videoTitle}
+                            {session.videos?.title || 'Untitled Video'}
                           </h3>
                           <p className="text-sm text-muted-foreground mt-1">
-                            {new Date(session.createdAt).toLocaleDateString()} at{' '}
-                            {new Date(session.createdAt).toLocaleTimeString()}
+                            {new Date(session.created_at).toLocaleDateString()} at{' '}
+                            {new Date(session.created_at).toLocaleTimeString()}
                           </p>
                           <div className="flex flex-wrap gap-2 mt-3">
-                            {session.notesGenerated && (
+                            {session.notes_count > 0 && (
                               <Badge variant="secondary" className="flex items-center gap-1">
                                 <CheckCircle2 className="h-3 w-3" />
-                                Notes Generated
+                                {session.notes_count} Notes Created
                               </Badge>
                             )}
-                            {session.quizCompleted && (
+                            {session.quiz_score !== null && (
                               <Badge variant="secondary" className="flex items-center gap-1">
                                 <CheckCircle2 className="h-3 w-3" />
-                                Quiz Completed
-                                {session.score && ` (${session.score}%)`}
+                                Quiz Completed ({session.quiz_score}%)
                               </Badge>
                             )}
                           </div>
@@ -102,7 +156,7 @@ export default function LearningHistoryPage() {
                       </div>
                       <div className="text-right">
                         <p className="text-2xl font-bold text-blue-600">
-                          {session.duration}
+                          {session.duration_minutes || 0}
                         </p>
                         <p className="text-sm text-muted-foreground">minutes</p>
                       </div>
