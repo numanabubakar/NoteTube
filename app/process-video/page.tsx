@@ -62,18 +62,25 @@ export default function ProcessVideoPage() {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
+        const youtubeId = extractYoutubeId(youtubeUrl);
         const { data: videoData, error: videoError } = await supabase
           .from('videos')
           .insert({
             user_id: user.id,
-            youtube_id: extractYoutubeId(youtubeUrl),
+            youtube_url: youtubeUrl,
+            video_id: youtubeId,
             title: `Video from ${youtubeUrl}`,
             transcript: data.transcript,
           })
           .select()
           .single();
 
-        if (!videoError && videoData) {
+        if (videoError) {
+          console.error('Error saving video:', videoError);
+          throw new Error(`Failed to save video to database: ${videoError.message}`);
+        }
+
+        if (videoData) {
           setVideoId(videoData.id);
           
           // Create learning session
