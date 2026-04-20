@@ -9,7 +9,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, AlertCircle, Bookmark, BookmarkCheck } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DashboardLayout } from '@/components/dashboard-layout';
-import NotesDisplay from '@/components/notes-display';
+import dynamic from 'next/dynamic';
+
+const NotesDisplay = dynamic(() => import('@/components/notes-display'), {
+  ssr: false,
+  loading: () => <div className="h-40 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+});
+
 import QuizDisplay from '@/components/quiz-display';
 import { createClient } from '@/lib/supabase/client';
 
