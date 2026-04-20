@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     const google = createGoogleGenerativeAI({ apiKey });
 
     // Chunking logic to handle large transcripts
-    const CHUNK_SIZE = 12000; // Characters per chunk
+    const CHUNK_SIZE = 10000; // Characters per chunk (~10 mins)
     const chunks = [];
     for (let i = 0; i < transcript.length; i += CHUNK_SIZE) {
       chunks.push(transcript.substring(i, i + CHUNK_SIZE));
@@ -54,20 +54,21 @@ export async function POST(request: NextRequest) {
     const allQuestions: any[] = [];
     const questionsPerChunk = Math.ceil(numQuestions / chunks.length);
 
-    for (const chunk of chunks) {
+    for (let i = 0; i < chunks.length; i++) {
       const { object } = await generateObject({
         model: google('gemini-3-flash-preview'),
         schema: quizSchema,
-        prompt: `You are an expert quiz creator. Create ${questionsPerChunk} multiple-choice questions based on the following segment of a YouTube transcript.
+        prompt: `You are an expert quiz creator. This is part ${i + 1} of ${chunks.length} of a long YouTube transcript.
+        Create ${questionsPerChunk} multiple-choice questions based on this specific segment.
         
         Each question should:
-        1. Test understanding of key concepts in this segment
+        1. Test understanding of key concepts in this specific segment (Part ${i + 1}/${chunks.length})
         2. Have 4 options (A, B, C, D)
         3. Have only one correct answer
         4. Include an explanation for the correct answer
         
-        Transcript Segment:
-        ${chunk}
+        Transcript Segment (Part ${i + 1}/${chunks.length}):
+        ${chunks[i]}
         
         Generate ${questionsPerChunk} questions in the specified JSON format.`,
       });

@@ -55,28 +55,37 @@ export default function NotesDisplay({ notes }: NotesDisplayProps) {
       // Improve rendering by making sure we're at the top
       window.scrollTo(0, 0);
 
+      // We clone the element to a hidden container to ensure styles are applied correctly
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight
+        width: element.offsetWidth,
+        height: element.offsetHeight,
+        onclone: (clonedDoc) => {
+          // You can modify the clone here if needed
+          const clonedElement = clonedDoc.querySelector('.prose') as HTMLElement;
+          if (clonedElement) {
+            clonedElement.style.padding = '40px';
+          }
+        }
       });
       
       const imgData = canvas.toDataURL('image/png');
-      const imgWidth = 210; // A4 width in mm
-      const pageHeight = 295; // A4 height in mm
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgWidth = 210; 
+      const pageHeight = 297; 
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       let heightLeft = imgHeight;
-
-      const pdf = new jsPDF('p', 'mm', 'a4');
       let position = 0;
 
+      // Add first page
       pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
 
-      while (heightLeft >= 0) {
+      // Add subsequent pages if needed
+      while (heightLeft > 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
         pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);

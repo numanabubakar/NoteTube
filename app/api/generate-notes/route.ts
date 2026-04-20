@@ -31,33 +31,42 @@ export async function POST(request: NextRequest) {
     }
 
     const google = createGoogleGenerativeAI({ apiKey });
+    const model = google('gemini-3-flash-preview');
 
-    // Limit transcript length to prevent hitting token quotas on the free tier
-    const MAX_CHARS = 30000;
-    const clampedTranscript = transcript.length > MAX_CHARS
-      ? transcript.substring(0, MAX_CHARS) + '\n\n[TRANSCRIPT TRUNCATED DUE TO LENGTH LIMITS]'
-      : transcript;
+    // Chunking logic to handle large transcripts (10,000 chars ~ 10-15 mins)
+    const CHUNK_SIZE = 10000;
+    const chunks: string[] = [];
+    for (let i = 0; i < transcript.length; i += CHUNK_SIZE) {
+      chunks.push(transcript.substring(i, i + CHUNK_SIZE));
+    }
 
-    const { text } = await generateText({
-      model: google('gemini-3-flash-preview'),
-      prompt: `You are an expert note-taker. Convert the following YouTube transcript into well-organized, comprehensive study notes.
+    const allNotes: string[] = [];
 
-Format the notes using Markdown:
-1. Use # for the main title
-2. Use ## for main sections
-3. Use ### for sub-sections
-4. Use bullet points (-) for key points
-5. Use **bold text** for important definitions or emphasis
-6. Use > for important highlights or quotes
-7. Add a "Conclusion" or "Summary" section at the end
+    for (let i = 0; i < chunks.length; i++) {
+      const { text } = await generateText({
+        model,
+        prompt: `You are an expert note-taker. This is part ${i + 1} of ${chunks.length} of a long YouTube transcript. 
+        Convert the following segment into well-organized study notes.
+        
+        Maintain consistent formatting with previous parts.
+        Format the notes using Markdown:
+        1. Use ## for main sections in this part
+        2. Use ### for sub-sections
+        3. Use bullet points (-) for key points
+        4. Use **bold text** for important definitions
+        
+        Transcript Segment (Part ${i + 1}/${chunks.length}):
+        ${chunks[i]}
+        
+        Notes for this part:`,
+      });
+      
+      allNotes.push(`### Part ${i + 1} of ${chunks.length}\n${text}\n\n---\n\n`);
+    }
 
-Transcript:
-${clampedTranscript}
+    const finalNotes = `# Study Notes\n\nGenerated for a video with ${chunks.length} segments.\n\n${allNotes.join('')}`;
 
-Please provide comprehensive, well-structured study notes in Markdown format.`,
-    });
-
-    return NextResponse.json({ notes: text });
+    return NextResponse.json({ notes: finalNotes });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to generate notes';
     console.error('Error generating notes:', error);
