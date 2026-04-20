@@ -35,30 +35,45 @@ export async function POST(request: NextRequest) {
 
     const google = createGoogleGenerativeAI({ apiKey });
     
-    // Limit transcript length to prevent hitting token quotas on the free tier
-    const MAX_CHARS = 30000; 
-    const clampedTranscript = transcript.length > MAX_CHARS 
-        ? transcript.substring(0, MAX_CHARS) + '\\n\\n[TRANSCRIPT TRUNCATED DUE TO LENGTH LIMITS]'
-        : transcript;
+    // Chunking logic to handle large transcripts
+    const CHUNK_SIZE = 12000; // Characters per chunk
+    const chunks = [];
+    for (let i = 0; i < transcript.length; i += CHUNK_SIZE) {
+      chunks.push(transcript.substring(i, i + CHUNK_SIZE));
+    }
 
-    const { object } = await generateObject({
-      model: google('gemini-2.0-flash'),
-      schema: quizSchema,
-      prompt: `You are an expert quiz creator. Create ${numQuestions} multiple-choice questions based on the following YouTube transcript.
+    const allQuestions: any[] = [];
+    const questionsPerChunk = Math.ceil(numQuestions / chunks.length);
 
-Each question should:
-1. Test understanding of key concepts
-2. Have 4 options (A, B, C, D)
-3. Have only one correct answer
-4. Include an explanation for the correct answer
+    for (const chunk of chunks) {
+      const { object } = await generateObject({
+        model: google('gemini-1.5-flash'),
+        schema: quizSchema,
+        prompt: `You are an expert quiz creator. Create ${questionsPerChunk} multiple-choice questions based on the following segment of a YouTube transcript.
+        
+        Each question should:
+        1. Test understanding of key concepts in this segment
+        2. Have 4 options (A, B, C, D)
+        3. Have only one correct answer
+        4. Include an explanation for the correct answer
+        
+        Transcript Segment:
+        ${chunk}
+        
+        Generate ${questionsPerChunk} questions in the specified JSON format.`,
+      });
 
-Transcript:
-${clampedTranscript}
+      if (object.questions) {
+        allQuestions.push(...object.questions);
+      }
+    }
 
-Generate ${numQuestions} questions in the specified JSON format.`,
-    });
+    // Combine and limit to exactly the requested number of questions
+    const finalQuiz = {
+      questions: allQuestions.slice(0, numQuestions),
+    };
 
-    return NextResponse.json({ quiz: object });
+    return NextResponse.json({ quiz: finalQuiz });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to generate quiz';
     console.error('Error generating quiz:', error);

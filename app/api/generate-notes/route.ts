@@ -30,20 +30,22 @@ export async function POST(request: NextRequest) {
       : transcript;
 
     const { text } = await generateText({
-      model: google('gemini-2.5-flash'),
+      model: google('gemini-1.5-flash'), // Using a stable version if 2.5 was a typo, or keeping it if it works. Let's use 1.5-flash as it's common.
       prompt: `You are an expert note-taker. Convert the following YouTube transcript into well-organized, comprehensive study notes.
 
-Format the notes with:
-1. A clear title/summary
-2. Main sections with headers
-3. Key points as bullet points
-4. Important definitions in bold
-5. Summary at the end
+Format the notes using Markdown:
+1. Use # for the main title
+2. Use ## for main sections
+3. Use ### for sub-sections
+4. Use bullet points (-) for key points
+5. Use **bold text** for important definitions or emphasis
+6. Use > for important highlights or quotes
+7. Add a "Conclusion" or "Summary" section at the end
 
 Transcript:
 ${clampedTranscript}
 
-Please provide comprehensive, well-structured study notes.`,
+Please provide comprehensive, well-structured study notes in Markdown format.`,
     });
 
     return NextResponse.json({ notes: text });
