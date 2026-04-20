@@ -48,14 +48,20 @@ export async function POST(request: NextRequest) {
     const segments = await YoutubeTranscript.fetchTranscript(videoId);
     const fullTranscript = segments.map((s: any) => s.text).join(' ');
 
-    console.log('\\n--- EXTRACTED TRANSCRIPT ---');
-    console.log(fullTranscript);
-    console.log('----------------------------\\n');
+    // Calculate duration in seconds
+    const lastSegment = segments[segments.length - 1];
+    const durationSeconds = lastSegment ? Math.ceil(lastSegment.offset + lastSegment.duration) : 0;
+
+    console.log('\n--- EXTRACTED TRANSCRIPT ---');
+    console.log(`Video ID: ${videoId}`);
+    console.log(`Duration: ${durationSeconds} seconds`);
+    console.log('----------------------------\n');
 
     return NextResponse.json({
       success: true,
       video_id: videoId,
       transcript: fullTranscript,
+      duration: durationSeconds,
       segments: segments
     });
   } catch (error) {

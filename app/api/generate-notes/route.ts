@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     // Limit transcript length to prevent hitting token quotas on the free tier
     const MAX_CHARS = 30000;
     const clampedTranscript = transcript.length > MAX_CHARS
-      ? transcript.substring(0, MAX_CHARS) + '\\n\\n[TRANSCRIPT TRUNCATED DUE TO LENGTH LIMITS]'
+      ? transcript.substring(0, MAX_CHARS) + '\n\n[TRANSCRIPT TRUNCATED DUE TO LENGTH LIMITS]'
       : transcript;
 
     const { text } = await generateText({

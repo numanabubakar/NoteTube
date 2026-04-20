@@ -72,6 +72,7 @@ export default function ProcessVideoPage() {
             video_id: youtubeId,
             title: `Video from ${youtubeUrl}`,
             transcript: data.transcript,
+            duration_seconds: data.duration || 0,
           })
           .select()
           .single();
@@ -91,6 +92,7 @@ export default function ProcessVideoPage() {
             .insert({
               user_id: user.id,
               video_id: videoData.id,
+              duration_minutes: Math.ceil((data.duration || 0) / 60),
               session_date: today,
             })
             .select()
