@@ -15,7 +15,16 @@ function extractVideoId(youtubeUrl: string): string {
     return '';
 }
 
+import { createClient } from '@/lib/supabase/server';
+
 export async function POST(request: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { youtubeUrl } = await request.json();
 

@@ -2,7 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateText } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 
+import { createClient } from '@/lib/supabase/server';
+
 export async function POST(request: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { transcript } = await request.json();
 
@@ -30,7 +39,7 @@ export async function POST(request: NextRequest) {
       : transcript;
 
     const { text } = await generateText({
-      model: google('gemini-1.5-flash'), // Using a stable version if 2.5 was a typo, or keeping it if it works. Let's use 1.5-flash as it's common.
+      model: google('gemini-3-flash-preview'),
       prompt: `You are an expert note-taker. Convert the following YouTube transcript into well-organized, comprehensive study notes.
 
 Format the notes using Markdown:

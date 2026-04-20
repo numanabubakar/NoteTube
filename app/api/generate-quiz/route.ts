@@ -14,7 +14,16 @@ const quizSchema = z.object({
   ),
 });
 
+import { createClient } from '@/lib/supabase/server';
+
 export async function POST(request: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { transcript, numQuestions = 5 } = await request.json();
 
@@ -34,7 +43,7 @@ export async function POST(request: NextRequest) {
     }
 
     const google = createGoogleGenerativeAI({ apiKey });
-    
+
     // Chunking logic to handle large transcripts
     const CHUNK_SIZE = 12000; // Characters per chunk
     const chunks = [];
@@ -47,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     for (const chunk of chunks) {
       const { object } = await generateObject({
-        model: google('gemini-1.5-flash'),
+        model: google('gemini-3-flash-preview'),
         schema: quizSchema,
         prompt: `You are an expert quiz creator. Create ${questionsPerChunk} multiple-choice questions based on the following segment of a YouTube transcript.
         

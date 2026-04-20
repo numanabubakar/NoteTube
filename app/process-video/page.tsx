@@ -102,6 +102,11 @@ export default function ProcessVideoPage() {
   };
 
   const handleGenerateNotes = async () => {
+    if (!transcript || !videoId) {
+      setError('Transcript and Video ID are required');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -119,6 +124,26 @@ export default function ProcessVideoPage() {
       }
 
       setNotes(data.notes);
+
+      // Save to database
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        const { error: saveError } = await supabase
+          .from('notes')
+          .insert({
+            user_id: user.id,
+            video_id: videoId,
+            content: data.notes,
+            is_bookmarked: false,
+          });
+
+        if (saveError) {
+          console.error('Error saving notes to database:', saveError);
+          // We don't throw here to avoid clearing the generated notes from state
+        }
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An error occurred';
       setError(message);
@@ -128,6 +153,11 @@ export default function ProcessVideoPage() {
   };
 
   const handleGenerateQuiz = async () => {
+    if (!transcript || !videoId) {
+      setError('Transcript and Video ID are required');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -145,6 +175,24 @@ export default function ProcessVideoPage() {
       }
 
       setQuiz(data.quiz);
+
+      // Save to database
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        const { error: saveError } = await supabase
+          .from('quizzes')
+          .insert({
+            user_id: user.id,
+            video_id: videoId,
+            questions: data.quiz.questions,
+          });
+
+        if (saveError) {
+          console.error('Error saving quiz to database:', saveError);
+        }
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An error occurred';
       setError(message);
