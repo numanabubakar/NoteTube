@@ -36,8 +36,6 @@ export default function NotesDisplay({ notes }: NotesDisplayProps) {
 
   const exportToText = () => {
     const element = document.createElement('a');
-    // We keep markdown symbols for text format as it's the standard for portable notes,
-    // or we could strip them. Let's keep them for now as it's more useful for text editors.
     const file = new Blob([notes], { type: 'text/plain' });
     element.href = URL.createObjectURL(file);
     element.download = 'study-notes.txt';
@@ -51,7 +49,7 @@ export default function NotesDisplay({ notes }: NotesDisplayProps) {
     setExporting(true);
     try {
       const element = notesRef.current;
-      
+
       // Improve rendering by making sure we're starting clean
       const canvas = await html2canvas(element, {
         scale: 2,
@@ -64,19 +62,19 @@ export default function NotesDisplay({ notes }: NotesDisplayProps) {
         windowWidth: element.scrollWidth,
         windowHeight: element.scrollHeight,
       });
-      
+
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
-      
+
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       const imgWidth = canvas.width;
       const imgHeight = canvas.height;
       const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-      
+
       const finalWidth = imgWidth * ratio;
       const finalHeight = imgHeight * ratio;
-      
+
       // For multi-page, we need a different approach
       let heightLeft = finalHeight;
       let position = 0;
@@ -94,7 +92,7 @@ export default function NotesDisplay({ notes }: NotesDisplayProps) {
         heightLeft -= pdfHeight;
         pageIdx++;
       }
-      
+
       pdf.save(`note-${Date.now()}.pdf`);
     } catch (err) {
       console.error('Failed to export PDF:', err);
@@ -109,15 +107,15 @@ export default function NotesDisplay({ notes }: NotesDisplayProps) {
   const exportToDoc = () => {
     // Basic HTML to Word conversion trick
     const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' " +
-            "xmlns:w='urn:schemas-microsoft-com:office:word' " +
-            "xmlns='http://www.w3.org/TR/REC-html40'>" +
-            "<head><meta charset='utf-8'><title>Study Notes</title></head><body>";
+      "xmlns:w='urn:schemas-microsoft-com:office:word' " +
+      "xmlns='http://www.w3.org/TR/REC-html40'>" +
+      "<head><meta charset='utf-8'><title>Study Notes</title></head><body>";
     const footer = "</body></html>";
-    
+
     // We can use the innerHTML of our rendered notes or generate from markdown
     // Using the rendered div is better for formatting
     const sourceHTML = header + notesRef.current?.innerHTML + footer;
-    
+
     const source = 'data:application/vnd.ms-word;charset=utf-8,' + encodeURIComponent(sourceHTML);
     const fileDownload = document.createElement("a");
     document.body.appendChild(fileDownload);
@@ -173,7 +171,7 @@ export default function NotesDisplay({ notes }: NotesDisplayProps) {
       </div>
 
       <Card className="bg-white border border-slate-200 shadow-sm overflow-hidden">
-        <div 
+        <div
           ref={notesRef}
           className="p-8 prose prose-slate max-w-none dark:prose-invert prose-headings:font-bold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-p:text-slate-700 prose-li:text-slate-700"
         >
@@ -182,7 +180,7 @@ export default function NotesDisplay({ notes }: NotesDisplayProps) {
           </ReactMarkdown>
         </div>
       </Card>
-      
+
       <style jsx global>{`
         .prose h1 { margin-top: 0; margin-bottom: 1.5rem; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; }
         .prose h2 { margin-top: 2rem; margin-bottom: 1rem; color: #1e293b; }
