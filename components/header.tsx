@@ -1,4 +1,5 @@
 'use client';
+import { useState, useEffect } from 'react';
 
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/store/auth-store';
@@ -13,16 +14,29 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LogOut, Settings, User } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export function Header() {
-  const { user, isLoading, logout } = useAuthStore((state) => ({
-    user: state.user,
-    isLoading: state.isLoading,
-    logout: state.logout
-  }));
+  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+  const user = useAuthStore((state) => state.user);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const logoutStore = useAuthStore((state) => state.logout);
 
-  if (isLoading) {
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    logoutStore();
+    router.push('/');
+  };
+
+  if (!mounted || isLoading) {
     return (
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur">
         <div className="container flex h-16 max-w-screen-2xl items-center justify-between px-4">
@@ -95,7 +109,7 @@ export function Header() {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={logout}>
+                <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Logout</span>
                 </DropdownMenuItem>

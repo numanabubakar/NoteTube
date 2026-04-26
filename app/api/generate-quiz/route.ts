@@ -25,13 +25,30 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { transcript, numQuestions = 5 } = await request.json();
+    const { transcript, videoId, numQuestions = 5 } = await request.json();
 
     if (!transcript) {
       return NextResponse.json(
         { error: 'Transcript is required' },
         { status: 400 }
       );
+    }
+
+    // Server-side caching check
+    if (videoId) {
+      const { data: existingQuiz } = await supabase
+        .from('quizzes')
+        .select('questions')
+        .eq('video_id', videoId)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (existingQuiz) {
+        console.log('Returning cached quiz for video:', videoId);
+        return NextResponse.json({ quiz: { questions: existingQuiz.questions }, cached: true });
+      }
     }
 
     const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
@@ -44,49 +61,36 @@ export async function POST(request: NextRequest) {
 
     const google = createGoogleGenerativeAI({ apiKey });
 
-    // Chunking logic to handle large transcripts
-    const CHUNK_SIZE = 10000; // Characters per chunk (~10 mins)
-    const chunks = [];
-    for (let i = 0; i < transcript.length; i += CHUNK_SIZE) {
-      chunks.push(transcript.substring(i, i + CHUNK_SIZE));
-    }
+    const { object } = await generateObject({
+      model: google('gemini-3-flash-preview'),
+      schema: quizSchema,
+      prompt: `You are an expert quiz creator. Based on the following YouTube transcript, create ${numQuestions} multiple-choice questions.
+      
+      Each question should:
+      1. Test understanding of the key concepts presented in the video.
+      2. Have exactly 4 options.
+      3. Have only one correct answer (index 0-3).
+      4. Include a helpful explanation for why the answer is correct.
+      
+      Transcript:
+      ${transcript}
+      
+      Generate exactly ${numQuestions} questions in the specified JSON format.`,
+    });
 
-    const allQuestions: any[] = [];
-    const questionsPerChunk = Math.ceil(numQuestions / chunks.length);
-
-    for (let i = 0; i < chunks.length; i++) {
-      const { object } = await generateObject({
-        model: google('gemini-3-flash-preview'),
-        schema: quizSchema,
-        prompt: `You are an expert quiz creator. This is part ${i + 1} of ${chunks.length} of a long YouTube transcript.
-        Create ${questionsPerChunk} multiple-choice questions based on this specific segment.
-        
-        Each question should:
-        1. Test understanding of key concepts in this specific segment (Part ${i + 1}/${chunks.length})
-        2. Have 4 options (A, B, C, D)
-        3. Have only one correct answer
-        4. Include an explanation for the correct answer
-        
-        Transcript Segment (Part ${i + 1}/${chunks.length}):
-        ${chunks[i]}
-        
-        Generate ${questionsPerChunk} questions in the specified JSON format.`,
-      });
-
-      if (object.questions) {
-        allQuestions.push(...object.questions);
-      }
-    }
-
-    // Combine and limit to exactly the requested number of questions
-    const finalQuiz = {
-      questions: allQuestions.slice(0, numQuestions),
-    };
-
-    return NextResponse.json({ quiz: finalQuiz });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to generate quiz';
+    return NextResponse.json({ quiz: object });
+  } catch (error: any) {
     console.error('Error generating quiz:', error);
+    
+    // Improved error handling for quota/rate limits
+    if (error?.status === 429 || error?.message?.includes('quota') || error?.message?.includes('Rate limit')) {
+      return NextResponse.json(
+        { error: 'AI Quota exceeded. Please wait a minute before trying again.' },
+        { status: 429 }
+      );
+    }
+
+    const message = error instanceof Error ? error.message : 'Failed to generate quiz';
     return NextResponse.json(
       { error: message },
       { status: 500 }

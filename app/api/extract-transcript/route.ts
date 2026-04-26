@@ -50,7 +50,8 @@ export async function POST(request: NextRequest) {
 
     // Calculate duration in seconds
     const lastSegment = segments[segments.length - 1];
-    const durationSeconds = lastSegment ? Math.ceil(lastSegment.offset + lastSegment.duration) : 0;
+    const durationMs = lastSegment ? (lastSegment.offset + lastSegment.duration) : 0;
+    const durationSeconds = Math.ceil(durationMs / 1000);
 
     console.log('\n--- EXTRACTED TRANSCRIPT ---');
     console.log(`Video ID: ${videoId}`);

@@ -52,49 +52,55 @@ export default function NotesDisplay({ notes }: NotesDisplayProps) {
     try {
       const element = notesRef.current;
       
-      // Improve rendering by making sure we're at the top
-      window.scrollTo(0, 0);
-
-      // We clone the element to a hidden container to ensure styles are applied correctly
+      // Improve rendering by making sure we're starting clean
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
+        allowTaint: true,
         logging: false,
         backgroundColor: '#ffffff',
-        width: element.offsetWidth,
-        height: element.offsetHeight,
-        onclone: (clonedDoc) => {
-          // You can modify the clone here if needed
-          const clonedElement = clonedDoc.querySelector('.prose') as HTMLElement;
-          if (clonedElement) {
-            clonedElement.style.padding = '40px';
-          }
-        }
+        width: element.scrollWidth,
+        height: element.scrollHeight,
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
       });
       
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgWidth = 210; 
-      const pageHeight = 297; 
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+      
+      const finalWidth = imgWidth * ratio;
+      const finalHeight = imgHeight * ratio;
+      
+      // For multi-page, we need a different approach
+      let heightLeft = finalHeight;
       let position = 0;
+      let pageIdx = 0;
 
       // Add first page
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+      pdf.addImage(imgData, 'PNG', 0, position, finalWidth, finalHeight);
+      heightLeft -= pdfHeight;
 
       // Add subsequent pages if needed
       while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
+        position = (pageIdx + 1) * pdfHeight * -1;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+        pdf.addImage(imgData, 'PNG', 0, position, finalWidth, finalHeight);
+        heightLeft -= pdfHeight;
+        pageIdx++;
       }
       
-      pdf.save('study-notes.pdf');
+      pdf.save(`note-${Date.now()}.pdf`);
     } catch (err) {
       console.error('Failed to export PDF:', err);
+      // Fallback to text if PDF fails
+      alert('PDF generation failed. Downloading as Text instead.');
+      exportToText();
     } finally {
       setExporting(false);
     }

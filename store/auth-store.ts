@@ -23,7 +23,7 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
-      isLoading: false,
+      isLoading: true,
       isAuthenticated: false,
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       setLoading: (loading) => set({ isLoading: loading }),
@@ -31,6 +31,10 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-store',
+      partialize: (state) => ({
+        user: state.user,
+        isAuthenticated: state.isAuthenticated,
+      }),
     }
   )
 );

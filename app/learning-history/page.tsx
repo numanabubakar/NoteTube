@@ -3,9 +3,11 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { DashboardLayout } from '@/components/dashboard-layout';
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, BookOpen, PlayCircle, Loader2 } from 'lucide-react';
+import { CheckCircle2, BookOpen, PlayCircle, Loader2, ArrowRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 interface SessionData {
@@ -13,6 +15,7 @@ interface SessionData {
   duration_minutes: number;
   notes_count: number;
   quiz_score: number | null;
+  video_id: string;
   created_at: string;
   videos: {
     title: string;
@@ -38,6 +41,7 @@ export default function LearningHistoryPage() {
             duration_minutes,
             notes_count,
             quiz_score,
+            video_id,
             created_at,
             videos (
               title,
@@ -160,7 +164,12 @@ export default function LearningHistoryPage() {
                         <p className="text-2xl font-bold text-blue-600">
                           {session.duration_minutes || 0}
                         </p>
-                        <p className="text-sm text-muted-foreground">minutes</p>
+                        <p className="text-sm text-muted-foreground mb-4">minutes</p>
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/process-video?v=${session.video_id}`}>
+                            Reopen <ArrowRight className="ml-2 h-4 w-4" />
+                          </Link>
+                        </Button>
                       </div>
                     </div>
                   </CardContent>

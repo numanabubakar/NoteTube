@@ -13,13 +13,30 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { transcript } = await request.json();
+    const { transcript, videoId } = await request.json();
 
     if (!transcript) {
       return NextResponse.json(
         { error: 'Transcript is required' },
         { status: 400 }
       );
+    }
+
+    // Server-side caching check
+    if (videoId) {
+      const { data: existingNote } = await supabase
+        .from('notes')
+        .select('content')
+        .eq('video_id', videoId)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (existingNote) {
+        console.log('Returning cached notes for video:', videoId);
+        return NextResponse.json({ notes: existingNote.content, cached: true });
+      }
     }
 
     const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
@@ -33,43 +50,36 @@ export async function POST(request: NextRequest) {
     const google = createGoogleGenerativeAI({ apiKey });
     const model = google('gemini-3-flash-preview');
 
-    // Chunking logic to handle large transcripts (10,000 chars ~ 10-15 mins)
-    const CHUNK_SIZE = 10000;
-    const chunks: string[] = [];
-    for (let i = 0; i < transcript.length; i += CHUNK_SIZE) {
-      chunks.push(transcript.substring(i, i + CHUNK_SIZE));
-    }
-
-    const allNotes: string[] = [];
-
-    for (let i = 0; i < chunks.length; i++) {
-      const { text } = await generateText({
-        model,
-        prompt: `You are an expert note-taker. This is part ${i + 1} of ${chunks.length} of a long YouTube transcript. 
-        Convert the following segment into well-organized study notes.
-        
-        Maintain consistent formatting with previous parts.
-        Format the notes using Markdown:
-        1. Use ## for main sections in this part
-        2. Use ### for sub-sections
-        3. Use bullet points (-) for key points
-        4. Use **bold text** for important definitions
-        
-        Transcript Segment (Part ${i + 1}/${chunks.length}):
-        ${chunks[i]}
-        
-        Notes for this part:`,
-      });
+    const { text } = await generateText({
+      model,
+      prompt: `You are an expert note-taker. Based on the following YouTube transcript, create comprehensive, well-organized study notes.
       
-      allNotes.push(`### Part ${i + 1} of ${chunks.length}\n${text}\n\n---\n\n`);
+      Format the notes using professional Markdown:
+      1. Use a clear # Title
+      2. Use ## for main sections and ### for sub-sections.
+      3. Use bullet points (-) for key points and details.
+      4. Use **bold text** for important terms, names, or definitions.
+      5. Include a brief "Key Takeaways" or "Summary" section at the end.
+      
+      Transcript:
+      ${transcript}
+      
+      Generate detailed notes that capture the essence and important details of the entire content.`,
+    });
+
+    return NextResponse.json({ notes: text });
+  } catch (error: any) {
+    console.error('Error generating notes:', error);
+    
+    // Improved error handling for quota/rate limits
+    if (error?.status === 429 || error?.message?.includes('quota') || error?.message?.includes('Rate limit')) {
+      return NextResponse.json(
+        { error: 'AI Quota exceeded. Please wait a minute before trying again.' },
+        { status: 429 }
+      );
     }
 
-    const finalNotes = `# Study Notes\n\nGenerated for a video with ${chunks.length} segments.\n\n${allNotes.join('')}`;
-
-    return NextResponse.json({ notes: finalNotes });
-  } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to generate notes';
-    console.error('Error generating notes:', error);
     return NextResponse.json(
       { error: message },
       { status: 500 }

@@ -62,27 +62,30 @@ export default function DashboardPage() {
 
         setUserName(user.email?.split('@')[0] || 'User');
 
-        // Fetch and aggregate learning stats
-        const { data: statsData } = await supabase
-          .from('learning_stats')
-          .select('*')
-          .eq('user_id', user.id);
+        // Fetch learning stats from our optimized API
+        const statsResponse = await fetch('/api/learning-stats');
+        const statsData = await statsResponse.json();
 
-        if (statsData && statsData.length > 0) {
-          const aggregated = statsData.reduce((acc, curr) => ({
-            total_sessions: acc.total_sessions + (curr.session_count || 0),
-            total_minutes: acc.total_minutes + (curr.total_minutes || 0),
-            total_notes: acc.total_notes + (curr.notes_created || 0),
-            total_quizzes: acc.total_quizzes + (curr.quizzes_taken || 0),
-            current_streak: Math.max(acc.current_streak, curr.current_streak || 0)
-          }), {
-            total_sessions: 0,
-            total_minutes: 0,
-            total_notes: 0,
-            total_quizzes: 0,
-            current_streak: 0
+        if (statsData && statsData.summary) {
+          setStats({
+            total_sessions: statsData.summary.totalSessions,
+            total_minutes: statsData.summary.totalMinutes,
+            total_notes: statsData.summary.totalNotes,
+            total_quizzes: statsData.summary.totalQuizzes,
+            current_streak: statsData.summary.currentStreak
           });
-          setStats(aggregated);
+          
+          if (statsData.dailyStats) {
+            const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const chartData = statsData.dailyStats.map((stat: any) => {
+              const date = new Date(stat.date);
+              return {
+                date: dayNames[date.getDay()],
+                time: stat.minutes || 0
+              };
+            });
+            setChartData(chartData);
+          }
         }
 
         // Fetch recent sessions

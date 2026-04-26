@@ -18,8 +18,18 @@ const NotesDisplay = dynamic(() => import('@/components/notes-display'), {
 
 import QuizDisplay from '@/components/quiz-display';
 import { createClient } from '@/lib/supabase/client';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 
 export default function ProcessVideoPage() {
+  return (
+    <Suspense fallback={<DashboardLayout><div className="flex items-center justify-center h-96"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div></DashboardLayout>}>
+      <ProcessVideoContent />
+    </Suspense>
+  );
+}
+
+function ProcessVideoContent() {
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -31,6 +41,79 @@ export default function ProcessVideoPage() {
   const [sessionId, setSessionId] = useState('');
   const [numQuestions, setNumQuestions] = useState(5);
   const [bookmarkedNotes, setBookmarkedNotes] = useState<Set<string>>(new Set());
+  
+  const searchParams = useSearchParams();
+  const vId = searchParams.get('v');
+
+  useEffect(() => {
+    if (vId) {
+      loadExistingData(vId);
+    }
+  }, [vId]);
+
+  const loadExistingData = async (id: string) => {
+    setLoading(true);
+    try {
+      const supabase = createClient();
+      
+      // Fetch video
+      const { data: videoData, error: videoError } = await supabase
+        .from('videos')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (videoError) throw videoError;
+      
+      setVideoId(id);
+      setTranscript(videoData.transcript);
+      setYoutubeUrl(videoData.youtube_url);
+
+      // Fetch existing notes
+      const { data: notesData } = await supabase
+        .from('notes')
+        .select('*')
+        .eq('video_id', id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (notesData && notesData.length > 0) {
+        console.log('Found existing notes for video:', id);
+        setNotes(notesData[0].content);
+        const bookmarked = new Set<string>();
+        if (notesData[0].is_bookmarked) {
+          bookmarked.add(notesData[0].content);
+        }
+        setBookmarkedNotes(bookmarked);
+      } else {
+        console.log('No existing notes found for video:', id);
+        setNotes('');
+      }
+
+      // Fetch existing quiz
+      const { data: quizData } = await supabase
+        .from('quizzes')
+        .select('*')
+        .eq('video_id', id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (quizData && quizData.length > 0) {
+        console.log('Found existing quiz for video:', id);
+        setQuiz({ questions: quizData[0].questions });
+      } else {
+        console.log('No existing quiz found for video:', id);
+        setQuiz(null);
+      }
+
+      setActiveTab('notes');
+    } catch (err) {
+      console.error('Error loading existing data:', err);
+      setError('Failed to load existing notes for this video.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleExtractTranscript = async () => {
     if (!youtubeUrl.trim()) {
@@ -42,6 +125,30 @@ export default function ProcessVideoPage() {
     setError('');
 
     try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) throw new Error('Unauthorized');
+
+      const youtubeId = extractYoutubeId(youtubeUrl);
+      if (!youtubeId) throw new Error('Invalid YouTube URL');
+
+      // 1. DATABASE-FIRST CHECK: See if we already have this video
+      const { data: existingVideo } = await supabase
+        .from('videos')
+        .select('id')
+        .eq('video_id', youtubeId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (existingVideo) {
+        console.log('Video found in database, loading existing data...');
+        await loadExistingData(existingVideo.id);
+        setLoading(false);
+        return;
+      }
+
+      // 2. ONLY EXTRACT IF NEW: Proceed with transcript extraction
       const response = await fetch('/api/extract-transcript', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -54,84 +161,131 @@ export default function ProcessVideoPage() {
         throw new Error(data.error || 'Failed to extract transcript');
       }
 
-      setTranscript(data.transcript);
-      setNotes('');
-      setQuiz(null);
+      const today = new Date().toISOString().split('T')[0];
       
-      // Save video to database
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        const youtubeId = extractYoutubeId(youtubeUrl);
-        const { data: videoData, error: videoError } = await supabase
-          .from('videos')
-          .insert({
-            user_id: user.id,
-            youtube_url: youtubeUrl,
-            video_id: youtubeId,
-            title: `Video from ${youtubeUrl}`,
-            transcript: data.transcript,
-            duration_seconds: data.duration || 0,
-          })
-          .select()
-          .single();
+      // Save new video to database
+      const { data: videoData, error: videoError } = await supabase
+        .from('videos')
+        .insert({
+          user_id: user.id,
+          youtube_url: youtubeUrl,
+          video_id: youtubeId,
+          title: `Video from ${youtubeUrl}`,
+          transcript: data.transcript,
+          duration_seconds: data.duration || 0,
+        })
+        .select()
+        .single();
 
-        if (videoError) {
-          console.error('Error saving video:', videoError);
-          throw new Error(`Failed to save video to database: ${videoError.message}`);
-        }
+      if (videoError) {
+        console.error('Error saving video:', videoError);
+        throw new Error(`Failed to save video to database: ${videoError.message}`);
+      }
 
         if (videoData) {
           setVideoId(videoData.id);
+          setTranscript(videoData.transcript);
           
-          // Create learning session
-          const today = new Date().toISOString().split('T')[0];
-          const { data: sessionData } = await supabase
+          // 2. Check if a session for today already exists
+          let { data: sessionData, error: sessionFetchError } = await supabase
             .from('learning_sessions')
-            .insert({
-              user_id: user.id,
-              video_id: videoData.id,
-              duration_minutes: Math.ceil((data.duration || 0) / 60),
-              session_date: today,
-            })
-            .select()
+            .select('*')
+            .eq('video_id', videoData.id)
+            .eq('user_id', user.id)
+            .eq('session_date', today)
             .single();
-          
-          if (sessionData) {
-            setSessionId(sessionData.id);
 
-            // Update learning stats for new session/video
-            const { data: existingStats } = await supabase
-              .from('learning_stats')
-              .select('id, session_count, videos_watched, total_minutes')
-              .eq('user_id', user.id)
-              .eq('stats_date', today)
-              .single();
-
-            const sessionMinutes = Math.ceil((data.duration || 0) / 60);
-
-            if (existingStats) {
-              await supabase.from('learning_stats').update({
-                session_count: (existingStats.session_count || 0) + 1,
-                videos_watched: (existingStats.videos_watched || 0) + 1,
-                total_minutes: (existingStats.total_minutes || 0) + sessionMinutes,
-                updated_at: new Date().toISOString()
-              }).eq('id', existingStats.id);
-            } else {
-              await supabase.from('learning_stats').insert({
+          if (!sessionData) {
+            // Create new learning session
+            const { data: newSession, error: sErr } = await supabase
+              .from('learning_sessions')
+              .insert({
                 user_id: user.id,
-                stats_date: today,
-                session_count: 1,
-                videos_watched: 1,
-                total_minutes: sessionMinutes
-              });
+                video_id: videoData.id,
+                duration_minutes: Math.ceil((data.duration || 0) / 60),
+                session_date: today,
+              })
+              .select()
+              .single();
+            
+            if (sErr) {
+              console.error('Error creating session:', sErr);
+            } else {
+              sessionData = newSession;
+              
+              // Update learning stats for new session/video
+              const { data: existingStats } = await supabase
+                .from('learning_stats')
+                .select('id, session_count, videos_watched, total_minutes')
+                .eq('user_id', user.id)
+                .eq('stats_date', today)
+                .single();
+
+              const sessionMinutes = Math.ceil((data.duration || 0) / 60);
+
+              if (existingStats) {
+                await supabase.from('learning_stats').update({
+                  session_count: (existingStats.session_count || 0) + 1,
+                  videos_watched: (existingStats.videos_watched || 0) + 1,
+                  total_minutes: (existingStats.total_minutes || 0) + sessionMinutes,
+                  updated_at: new Date().toISOString()
+                }).eq('id', existingStats.id);
+              } else {
+                await supabase.from('learning_stats').insert({
+                  user_id: user.id,
+                  stats_date: today,
+                  session_count: 1,
+                  videos_watched: 1,
+                  total_minutes: sessionMinutes
+                });
+              }
             }
           }
+
+          if (sessionData) {
+            setSessionId(sessionData.id);
+          }
+
+          // 3. Fetch any existing notes/quizzes for this video to auto-load
+          const { data: existingNotes } = await supabase
+            .from('notes')
+            .select('*')
+            .eq('video_id', videoData.id)
+            .eq('user_id', user.id)
+            .limit(1);
+          
+          if (existingNotes && existingNotes.length > 0) {
+            setNotes(existingNotes[0].content);
+            if (existingNotes[0].is_bookmarked) {
+              setBookmarkedNotes(new Set([existingNotes[0].content]));
+            }
+          } else {
+            setNotes('');
+          }
+
+          const { data: existingQuiz } = await supabase
+            .from('quizzes')
+            .select('*')
+            .eq('video_id', videoData.id)
+            .eq('user_id', user.id)
+            .limit(1);
+          
+          if (existingQuiz && existingQuiz.length > 0) {
+            setQuiz({ questions: existingQuiz[0].questions });
+          } else {
+            setQuiz(null);
+          }
+
+          // If content already exists, move to the notes tab
+          if (existingNotes?.length || existingQuiz?.length) {
+            setActiveTab('notes');
+          } else {
+            // Only reset if NO existing content was found
+            setNotes('');
+            setQuiz(null);
+            setActiveTab('notes'); 
+          }
         }
-      }
-      
-      setActiveTab('notes');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An error occurred';
       setError(message);
@@ -171,12 +325,12 @@ export default function ProcessVideoPage() {
       if (user) {
         const { error: saveError } = await supabase
           .from('notes')
-          .insert({
+          .upsert({
             user_id: user.id,
             video_id: videoId,
             content: data.notes,
             is_bookmarked: false,
-          });
+          }, { onConflict: 'user_id,video_id' });
 
         if (saveError) {
           console.error('Error saving notes to database:', saveError);
@@ -209,7 +363,7 @@ export default function ProcessVideoPage() {
       const response = await fetch('/api/generate-quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript, numQuestions }),
+        body: JSON.stringify({ transcript, videoId, numQuestions }),
       });
 
       const data = await response.json();
@@ -227,11 +381,11 @@ export default function ProcessVideoPage() {
       if (user) {
         const { error: saveError } = await supabase
           .from('quizzes')
-          .insert({
+          .upsert({
             user_id: user.id,
             video_id: videoId,
             questions: data.quiz.questions,
-          });
+          }, { onConflict: 'user_id,video_id' });
 
         if (saveError) {
           console.error('Error saving quiz to database:', saveError);
