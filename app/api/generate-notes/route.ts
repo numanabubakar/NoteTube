@@ -1,3 +1,4 @@
+export const maxDuration = 120;
 import { NextRequest, NextResponse } from 'next/server';
 import { generateText } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ notes: text });
   } catch (error: any) {
     console.error('Error generating notes:', error);
-    
+
     // Improved error handling for quota/rate limits
     if (error?.status === 429 || error?.message?.includes('quota') || error?.message?.includes('Rate limit')) {
       return NextResponse.json(
