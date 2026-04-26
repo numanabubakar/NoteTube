@@ -54,6 +54,8 @@ export async function POST(request: NextRequest) {
       model,
       prompt: `You are an expert note-taker. Based on the following YouTube transcript, create comprehensive, well-organized study notes.
       
+      IMPORTANT: The transcript may be in Hindi, Urdu, or another language. Regardless of the transcript's language, you MUST write the final notes entirely in English.
+      
       Format the notes using professional Markdown:
       1. Use a clear # Title
       2. Use ## for main sections and ### for sub-sections.

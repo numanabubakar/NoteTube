@@ -66,6 +66,8 @@ export async function POST(request: NextRequest) {
       schema: quizSchema,
       prompt: `You are an expert quiz creator. Based on the following YouTube transcript, create ${numQuestions} multiple-choice questions.
       
+      IMPORTANT: The transcript may be in Hindi, Urdu, or another language. Regardless of the transcript's language, you MUST write the questions, options, and explanations entirely in English.
+      
       Each question should:
       1. Test understanding of the key concepts presented in the video.
       2. Have exactly 4 options.
